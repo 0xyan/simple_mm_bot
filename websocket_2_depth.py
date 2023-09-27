@@ -13,7 +13,11 @@ logging.basicConfig(level=logging.INFO)
 async def orders_router(client, bids, asks):
     await send_orders(client, depth=bids, side='BUY')
     await send_orders(client, depth=asks, side='SELL')
-    
+
+async def send_orders(client, depth, side):
+    tasks = [create_order(client, k, v, side) for k,v in depth.items()]
+    results = await asyncio.gather(*tasks)
+    logging.info(results)
     
 async def create_order(client, price, size, side):
     try:
@@ -30,13 +34,25 @@ async def create_order(client, price, size, side):
     except Exception as e:
         logging.error(f'Error creating order: {e}')
         return None
+    
+async def order_cancelling(client):
+    #get all open orders
+    orders = await client.get_open_orders(symbol='NEOUSDT')
+    #checking if there are open orders to cancel them
+    if orders:
+        for order in orders:
+            id = order['orderId']
+            cancelled = await client.cancel_order(symbol='NEOUSDT', orderId=id)
+            logging.info(f'order {id} has been cancelled: {cancelled}')
+    else:
+        pass
 
-        
-async def send_orders(client, depth, side):
-    tasks = [create_order(client, k, v, side) for k,v in depth.items()]
-    results = await asyncio.gather(*tasks)
-    logging.info(results)
 
+async def book_balancing(client):
+    #checking spot balances (the market I am making)
+    balance = await client.get_asset_balance(asset='NEO')
+    #checking the short position on futures
+    
 
 async def main():
     binance_key = os.getenv("BINANCE_API_KEY")
@@ -64,6 +80,12 @@ async def main():
                     for i in v:
                         asks[round(float(i[0]) * (1 + margin), 2)] = float(i[1])
             logging.info(f'time_to_loop: {time.time() - start_time}')
+
+            #cancelling all unexecuted orders
+            await order_cancelling(client)
+
+            #checking if I have unhedged positions
+
 
             start_time = time.time()
             await orders_router(client, bids, asks)
