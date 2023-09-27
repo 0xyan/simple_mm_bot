@@ -41,7 +41,7 @@ async def send_orders(client, depth, side):
 async def main():
     binance_key = os.getenv("BINANCE_API_KEY")
     binance_secret = os.getenv("BINANCE_SECRET")
-    client = AsyncClient(binance_key, binance_secret)
+    client = AsyncClient(binance_key, binance_secret, testnet=True)
     bm = BinanceSocketManager(client)
 
     socket = bm.futures_depth_socket('neousdt', 5)
@@ -71,6 +71,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-
