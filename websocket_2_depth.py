@@ -47,17 +47,36 @@ async def order_cancelling(client):
     else:
         pass
 
-
-async def book_balancing(client):
+async def hedging(client):
+    #The script assumes we start with 10,000 NEO and 100,000 USDT
+    initial_token_balance = 10000
     #checking spot balances (the market I am making)
-    balance = await client.get_asset_balance(asset='NEO')
-    #checking the short position on futures
-    
+    spot_token_balance = await client.get_asset_balance(asset='NEO')
+    must_be_hedged = initial_token_balance - spot_token_balance
+    #looking what's actually hedged on futures
+    is_hedged = await client.futures_position_information('NEOUSDT')['positionAmt']
+    is_hedged = float(is_hedged)
+    to_hedge = must_be_hedged - is_hedged
+    #send a market order to hedge the unhedged exposure immidiately
+    if to_hedge > 0:
+        side = 'BUY'
+    else:
+        side = 'SELL'
+    if abs(to_hedge) > 10:
+        order = await client.futures_create_order(
+                            symbol = 'NEOUSDT',
+                            side=side,
+                            type='MARKET',
+                            uantity=round(abs(to_hedge),2)
+        )
+        logging.info(f'futures market hedge order sent {order}')
+
+
 
 async def main():
     binance_key = os.getenv("BINANCE_API_KEY")
     binance_secret = os.getenv("BINANCE_SECRET")
-    client = AsyncClient(binance_key, binance_secret, testnet=True)
+    client = AsyncClient(binance_key, binance_secret)
     bm = BinanceSocketManager(client)
 
     socket = bm.futures_depth_socket('neousdt', 5)
@@ -83,9 +102,8 @@ async def main():
 
             #cancelling all unexecuted orders
             await order_cancelling(client)
-
-            #checking if I have unhedged positions
-
+            #hedging at market prices if we got spot exposure this cycle
+            await hedging(client)
 
             start_time = time.time()
             await orders_router(client, bids, asks)
