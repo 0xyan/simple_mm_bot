@@ -1,4 +1,3 @@
-import pandas as pd
 import asyncio
 from binance import AsyncClient, BinanceSocketManager
 import os
@@ -81,6 +80,7 @@ async def main():
 
     socket = bm.futures_depth_socket('neousdt', 5)
 
+
     async with socket as tscm:
         asks = {}
         bids = {}
@@ -100,13 +100,12 @@ async def main():
                         asks[round(float(i[0]) * (1 + margin), 2)] = float(i[1])
             logging.info(f'time_to_loop: {time.time() - start_time}')
 
-            #cancelling all unexecuted orders
-            await order_cancelling(client)
-            #hedging at market prices if we got spot exposure this cycle
-            await hedging(client)
-
             start_time = time.time()
-            await orders_router(client, bids, asks)
+            await asyncio.gather(
+                order_cancelling(client),
+                hedging(client),
+                orders_router(client, bids, asks)
+            )
             logging.info(f'time to print: {time.time() - start_time}')
 
 if __name__ == "__main__":
